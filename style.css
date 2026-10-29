@@ -148,3 +148,17 @@ td .native { color: var(--muted); font-size: 14px; }
 .lg p { margin: 0; font-size: 14px; line-height: 1.45; color: #2B2F36; }
 #lg-undef:empty { display: none; }
 @media (max-width: 560px) { .lg-grid { grid-template-columns: 1fr; } }
+/* credits (replaces the WordPress box) */
+.credits { margin: 24px 0 0; padding: 22px 20px 20px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--gold); border-radius: 6px; text-align: center; }
+.credits h2 { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--navy); }
+.credits p { margin: 0; color: var(--muted); font-size: 15px; }
+.credits .team { list-style: none; margin: 14px 0 16px; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px; }
+.credits .team li { display: flex; flex-direction: column; align-items: center; }
+.credits .team strong { font-size: 17px; font-weight: 700; color: var(--ink); }
+.credits .team span { font-size: 13px; font-weight: 600; color: var(--blue); }
+.credits .contact { color: var(--ink); font-weight: 600; }
+.credits .contact a { color: var(--tagInk); }
+.credits .fine { margin-top: 8px; font-size: 13px; }
+main.wrap { padding-bottom: 48px; }
+#aff .lbl { font-weight: 600; }
+.more[hidden] { display: none !important; }

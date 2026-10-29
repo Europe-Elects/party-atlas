@@ -68,7 +68,7 @@ const isNone = v => !v || /^(unaffiliated|none|no|\*|-|–)$/i.test(v);
 const fmt = d3.format(",");
 
 let ALL = [], VIEW = [], state = { q: "", country: "", status: "active", ep: "", ideo: "", lean: false, latest: true };
-let sort = { key: "country", asc: true }, shown = 100, affTab = 0;
+let sort = { key: "country", asc: true }, shown = 100, affTab = 0, affAll = false;
 
 // ---------- load ----------
 async function load() {
@@ -240,14 +240,14 @@ function setCountry(iso) { state.country = iso; $("#f-country").value = iso; app
 function hbars(el, data, { color = "#2A5DB0", onClick, active, label = d => d.key, valueFmt = fmt } = {}) {
   const host = d3.select(el); host.selectAll("*").remove();
   if (!data.length) { host.append("p").attr("class", "sub").text("Nothing in view."); return; }
-  const W = el.clientWidth || 360, row = 24, lw = Math.min(170, W * 0.42), pad = 40;
+  const W = el.clientWidth || 360, row = 26, lw = Math.min(260, W * 0.42), pad = 40, maxChars = W > 700 ? 42 : 26;
   const H = data.length * row + 4;
   const x = d3.scaleLinear([0, d3.max(data, d => d.value)], [0, W - lw - pad]);
   const svg = host.append("svg").attr("width", W).attr("height", H);
   const g = svg.selectAll("g").data(data).join("g").attr("transform", (d, i) => `translate(0,${i * row})`);
   g.append("rect").attr("class", "hit").attr("width", W).attr("height", row);
   g.append("text").attr("class", "lbl" + (onClick ? " clickable" : "")).attr("x", lw - 8).attr("y", row / 2).attr("dy", ".35em").attr("text-anchor", "end")
-    .text(d => trunc(label(d), 26)).style("font-weight", d => active && active(d) ? 600 : null);
+    .text(d => trunc(label(d), maxChars)).style("font-weight", d => active && active(d) ? 600 : null);
   g.append("rect").attr("x", lw).attr("y", 5).attr("height", row - 10).attr("rx", 3)
     .attr("width", d => Math.max(2, x(d.value))).attr("fill", d => typeof color === "function" ? color(d) : color)
     .attr("opacity", d => active && state.ideo && !active(d) ? 0.35 : 1);
@@ -401,11 +401,16 @@ function renderSpectrum() {
 // ---------- affiliations ----------
 function renderAff() {
   $("#aff-tabs").innerHTML = AFF.map(([l], i) => `<button role="tab" aria-selected="${i === affTab}" data-i="${i}">${l}</button>`).join("");
-  $("#aff-tabs").querySelectorAll("button").forEach(b => b.onclick = () => { affTab = +b.dataset.i; renderAff(); });
+  $("#aff-tabs").querySelectorAll("button").forEach(b => b.onclick = () => { affTab = +b.dataset.i; affAll = false; renderAff(); postHeight(); });
   const col = AFF[affTab][1];
   const vals = VIEW.flatMap(r => (r[col] || "").split(/[,;]/).map(s => s.trim()).filter(s => !isNone(s)));
   const data = d3.rollups(vals, v => v.length, d => d).map(([key, value]) => ({ key, value })).sort((a, b) => b.value - a.value);
-  hbars($("#aff"), data, { color: "#2A5DB0" });
+  // Top 12 by default (no inner scrollbar); "Show all" expands the list.
+  const more = $("#aff-more"), cap = 12;
+  hbars($("#aff"), affAll ? data : data.slice(0, cap), { color: "#2A5DB0" });
+  more.hidden = data.length <= cap;
+  more.textContent = affAll ? "Show fewer" : `Show all ${data.length}`;
+  more.onclick = () => { affAll = !affAll; renderAff(); postHeight(); };
 }
 
 // Ideology definitions, identical to the country pages: [name, colour, definition].

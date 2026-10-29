@@ -39,7 +39,7 @@
   <section class="kpis" id="kpis"></section>
 
   <section class="grid">
-    <article class="card span-2 rows-2">
+    <article class="card span-2">
       <header><h2>Where the parties are</h2><p>Entities per country. Click a country to filter everything.</p></header>
       <div id="map" class="map"></div>
       <div id="map-legend" class="legend-ramp"></div>
@@ -49,16 +49,17 @@
       <header><h2>Europarty membership</h2><p>Current members; hatched = interest to join. Click to filter.</p></header>
       <div id="ep-total"></div>
     </article>
-    <article class="card">
+    <article class="card span-3">
       <header><h2>Affiliations</h2><p>Membership counts, excluding unaffiliated.</p></header>
       <div class="tabs" id="aff-tabs" role="tablist"></div>
-      <div id="aff" class="scroll-y"></div>
+      <div id="aff"></div>
+      <button id="aff-more" class="ghost more" hidden></button>
     </article>
 
     <article class="card span-3">
       <header><h2>Ideology × EU integration</h2><p>Each dot is a party: left–right by ideological orientation, up–down by stance on EU integration. Pick a country above to see one party system. Hover for details, click to open.</p></header>
       <div id="lr-legend" class="legend lr-legend"></div>
-      <div id="lr" class="scroll-y tall"></div>
+      <div id="lr"></div>
       <p id="lr-note" class="note"></p>
     </article>
 
@@ -79,7 +80,19 @@
       <button id="lg-toggle" class="ghost more" aria-expanded="false"></button>
     </article>
   </section>
-  <footer class="foot">Data © Europe Elects · updated daily from the Europe Elects Party &amp; Alliance Database.</footer>
+  <section class="credits" aria-labelledby="credits-h">
+    <h2 id="credits-h">About this database</h2>
+    <p>The Europe Elects Party &amp; Alliance Database is maintained by</p>
+    <ul class="team">
+      <li><strong>Antonio Modeo</strong><span>Political Party Database Specialist</span></li>
+      <li><strong>David Montoto Salas</strong><span>Data Analyst, Germany</span></li>
+      <li><strong>Matej Martinák</strong><span>Archiving &amp; Documentation Officer</span></li>
+      <li><strong>Tobias Gerhard Schminke</strong><span>Project Lead</span></li>
+      <li><strong>Tomos Stokes</strong><span>Political Party Database Specialist</span></li>
+    </ul>
+    <p class="contact">Found a mistake, or would you like to add data? <a href="mailto:contact@europeelects.eu">contact@europeelects.eu</a></p>
+    <p class="fine">Data © Europe Elects · updated daily.</p>
+  </section>
 </main>
 
 <aside id="drawer" class="drawer" aria-hidden="true">
