@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>European Party Atlas</title>
 <meta name="description" content="Interactive explorer for the Europe Elects Party and Alliance Database.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Advent+Pro:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
@@ -15,10 +18,9 @@
   <div class="wrap">
     <div class="title-row">
       <div>
-        <h1>European Party Atlas</h1>
-        <p class="sub">An explorer for the <a id="src-link" href="#" target="_blank" rel="noopener">Europe Elects Party &amp; Alliance Database</a> · <span id="data-stamp">loading…</span></p>
+        <h1>Party Atlas</h1>
+        <p class="sub"><span id="data-stamp">loading…</span></p>
       </div>
-      <button id="theme" class="ghost" aria-label="Toggle dark mode">Theme</button>
     </div>
     <div class="filters" role="search">
       <input id="q" type="search" placeholder="Search name, abbreviation, ID…" aria-label="Search parties">
@@ -26,6 +28,7 @@
       <select id="f-status" aria-label="Status"></select>
       <select id="f-ep" aria-label="Europarty"><option value="">All Europarties</option></select>
       <select id="f-ideo" aria-label="Ideology"><option value="">All ideologies</option></select>
+      <label class="chk"><input id="f-latest" type="checkbox" checked> latest version only</label>
       <label class="chk"><input id="f-lean" type="checkbox" checked> include “interest to join”</label>
       <button id="reset" class="ghost">Reset</button>
     </div>
@@ -69,7 +72,7 @@
       <button id="more" class="ghost more">Show more</button>
     </article>
   </section>
-  <footer class="foot">Data © Europe Elects. Rebuilt daily from the source sheet by a GitHub Action.</footer>
+  <footer class="foot">Data © Europe Elects · updated daily from the Europe Elects Party &amp; Alliance Database.</footer>
 </main>
 
 <aside id="drawer" class="drawer" aria-hidden="true">

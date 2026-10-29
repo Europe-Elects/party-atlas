@@ -1,6 +1,6 @@
 # European Party Atlas
 
-An interactive explorer for the [Europe Elects Party & Alliance Database](https://docs.google.com/spreadsheets/d/1MAdqaO7SU4uhjjbaDoTGdj7DPZ_NuWvjTnAcrUnTHY8/edit?gid=0), hosted on GitHub Pages and refreshed from the sheet every day.
+An interactive explorer for the Europe Elects Party & Alliance Database, in the Europe Elects house style (Advent Pro, navy title bars, the country pages' Europarty colours). Hosted on GitHub Pages and refreshed from the sheet every day. The page links to no sheet and offers no download.
 
 ## What's in it
 
@@ -8,7 +8,10 @@ An interactive explorer for the [Europe Elects Party & Alliance Database](https:
 - **Europarty membership** – current members per European party, with “interest to join” shown hatched (toggle it off in the filter bar).
 - **Ideology × EU integration** – every party as a dot: left–right by ideological orientation, up–down by EU-integration stance, scattered to avoid overlap. Fill = Europarty, thick ring = EP group.
 - **Affiliations** (EP group, PACE, international federations, Nordic Council, CoR, CLaRA, CIS, Benelux).
-- **Table** – sortable and searchable; click a row for every field plus the entity's version history (e.g. a party that realigned).
+- **Table** – sortable and searchable; click a row for every field.
+- **Latest version only** (on by default) shows one row per entity: its highest Europe Elects Entity Version. "Realigned" rows (earlier versions) are never offered as a status.
+- `*` in the database is shown as *unaffiliated*. "Interest to join" is used only for the hatched bars and faded dots, not in the detail panel.
+- The map shows Crimea as part of Ukraine.
 - Filters are kept in the URL, so a filtered view can be shared as a link. There is no download option.
 
 Columns from *Documented Links…* onward (Orientation, CEEGLA, LIBSEEN, Other International Affiliations, Date Enter, Date Exit, Note, Latest) and the *Europe Elects European Parliament Seat Projection Assignment* column are deliberately excluded — the Action strips them before publishing.
@@ -37,7 +40,7 @@ The Google Sheet must stay viewable by “anyone with the link” for the Action
 python3 -m http.server
 ```
 
-Then open http://localhost:8000. Without a `data/parties.csv` it tries the live sheet, then falls back to the sample.
+Then open http://localhost:8000. Without a `data/parties.csv` it falls back to the sample.
 
 ## Notes
 
