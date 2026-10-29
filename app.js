@@ -59,7 +59,7 @@ CZ:"203",DK:"208",EE:"233",FO:"234",FI:"246",FR:"250",GE:"268",DE:"276",GI:"292"
 IS:"352",IE:"372",IM:"833",IT:"380",JE:"832",KZ:"398",LV:"428",LI:"438",LT:"440",LU:"442",MT:"470",MD:"498",MC:"492",
 ME:"499",NL:"528",MK:"807",NO:"578",PL:"616",PT:"620",RO:"642",RU:"643",SM:"674",RS:"688",SK:"703",SI:"705",ES:"724",
 SE:"752",CH:"756",TR:"792",UA:"804",GB:"826",VA:"336",IL:"376"};
-const BY_NAME = {XK:"Kosovo", CY_N:"N. Cyprus"};
+const BY_NAME = {XK:"Kosovo"};
 
 const $ = s => document.querySelector(s);
 const tip = $("#tip");
@@ -151,7 +151,8 @@ function renderKPIs() {
   const countries = new Set(VIEW.map(r => r[C.iso]).filter(Boolean));
   const withEP = VIEW.filter(r => r._ep && !r._lean).length;
   const sep = VIEW.filter(r => /^yes/i.test(r[C.sep])).length;
-  const minority = VIEW.filter(r => /^yes/i.test(r[C.minority])).length;
+  // The column names the minority ("Albanian", "German", …) or says "No".
+  const minority = VIEW.filter(r => !isNone(r[C.minority])).length;
   const k = [
     [fmt(VIEW.length), "rows in view"], [fmt(ids.size), "distinct entities"], [fmt(countries.size), "countries & territories"],
     [VIEW.length ? Math.round(100 * withEP / VIEW.length) + "%" : "–", "in a Europarty"],
@@ -163,6 +164,17 @@ function renderKPIs() {
 // ---------- map ----------
 let world = null;
 // The base map (Natural Earth) draws Crimea as part of Russia. Move it to Ukraine and dissolve the border.
+// Natural Earth draws Northern Cyprus as a separate country. Merge it into Cyprus.
+function cyprusUnited(topo) {
+  try {
+    const geos = topo.objects.countries.geometries;
+    const cy = geos.find(g => String(g.id) === "196"), nc = geos.find(g => g.properties && g.properties.name === "N. Cyprus");
+    if (!cy || !nc) return;
+    const merged = topojson.mergeArcs(topo, [cy, nc]);
+    cy.type = merged.type; cy.arcs = merged.arcs;
+    geos.splice(geos.indexOf(nc), 1);
+  } catch (e) { /* keep the map as it is */ }
+}
 function ukraineWithCrimea(topo) {
   try {
     const geos = topo.objects.countries.geometries;
@@ -181,6 +193,7 @@ async function loadWorld() {
   if (world) return world;
   const topo = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json");
   ukraineWithCrimea(topo);
+  cyprusUnited(topo);
   world = topojson.feature(topo, topo.objects.countries).features;
   return world;
 }
@@ -395,6 +408,122 @@ function renderAff() {
   hbars($("#aff"), data, { color: "#2A5DB0" });
 }
 
+// Ideology definitions, identical to the country pages: [name, colour, definition].
+const IDEOLOGY_DEFS = [
+ [
+  "Agrarianism",
+  "#90ee90",
+  "Agrarian parties are political movements whose primary political concern is the representation of farmers, rural communities, and agricultural producers, often advocating for stronger support for domestic food production and regional development. They tend to emphasize rural representation, decentralization, and policies aimed at protecting farmers from economic pressures, whether from global markets, urban elites, or regulation, with agricultural interests typically taking precedence over broader ideological positioning. While they can range from centre-left to conservative, they are generally united by a belief that agriculture and rural life deserve a stronger political voice and protection."
+ ],
+ [
+  "Animal rights",
+  "#009076",
+  "Animal rights parties are political movements whose primary political concern is the protection of animals, animal welfare, and the ethical relationship between humans, animals, and nature. They tend to advocate stronger animal protection laws, more sustainable environmental policies, and ethical reforms in areas such as agriculture, food production, scientific testing, and biodiversity. They overlap ideologically with Green politics and left-wing politics, but distinguish themselves by placing animal welfare and animal rights at the centre of their political agenda rather than treating them as secondary issues within broader environmental or social programmes."
+ ],
+ [
+  "Centre-left",
+  "#FF0000",
+  "Centre-left parties are political movements whose primary political concern is the promotion of social justice, economic equality, and strong public institutions within a democratic political framework. They tend to advocate redistributive economic policies, expansive welfare states, labour rights, public investment in healthcare and education, and protections for disadvantaged groups, while generally supporting a mixed economy that combines market mechanisms with state intervention. They distinguish themselves from more radical left-wing parties by accepting parliamentary democracy, political pluralism, and a mixed-market economy rather than seeking a fundamental transformation of capitalism, while distinguishing themselves from centre-right and centrist parties by placing greater emphasis on redistribution, public services, labour protections, and reducing social and economic inequalities."
+ ],
+ [
+  "Centre-right",
+  "#3399FF",
+  "Centre-right parties are political movements whose primary political concern is the promotion of social stability, economic responsibility, democratic institutions, and often values rooted in Christian democracy, liberal conservatism, or civic patriotism. They tend to advocate market-oriented economies, strong but limited government, support for heteronormative families and civil society, and gradual reform, while often combining economic liberalism with a commitment to social cohesion and institutional continuity. They distinguish themselves from centrist and centre-left parties by placing greater emphasis on market economics, lower taxation, individual responsibility, traditional social values, and more restrained state intervention in the economy, while distinguishing themselves from national-conservative and right-wing parties by typically supporting liberal democracy, international cooperation, political moderation, and a more inclusive or institution-oriented understanding of national identity."
+ ],
+ [
+  "Centrism",
+  "#fa8c00",
+  "Centrist and liberal-centre parties are political movements whose primary political concern is the promotion of political moderation as well as economic and social policies that avoid ideological extremes. They tend to advocate institutional reform, civil liberties, pro-European or international cooperation, and mixed economic approaches that combine market mechanisms with targeted state intervention. They distinguish themselves from centre-right and conservative parties by placing greater emphasis on political reform, social liberalism, environmental sustainability, and a more active role for the state in addressing inequality or modernisation, while distinguishing themselves from centre-left parties by generally favouring market economics, fiscal moderation, and incremental political and economic change."
+ ],
+ [
+  "Christian fundamentalism",
+  "#a16585",
+  "Christian fundamentalist parties are political movements whose primary political concern is the preservation of religiously informed public ethics and socially conservative understandings of family and community. They tend to advocate policies rooted in Christian or religious values, often viewing the Christian Bible as a foundational guide for policymaking, alongside support for traditional family structures, cultural continuity, and a cautious approach to rapid social change, frequently opposing the liberalization of issues such as abortion, euthanasia, or changes to marriage and gender norms. They distinguish themselves from national-conservative parties by placing greater emphasis on religious doctrine and biblical morality rather than national identity, sovereignty, or cultural nationalism, while distinguishing themselves from broader centre-right parties by giving moral and religious values precedence over economic liberalism, pragmatic governance, or broad ideological coalitions. They further distinguish themselves from centre-left parties by promoting a vision of social justice rooted more in charity, community responsibility, and faith-based solidarity than in redistribution, labour politics, or class-based bargaining."
+ ],
+ [
+  "Eurofederalism",
+  "#502379",
+  "European federalist parties are political movements whose primary political concern is the deepening of European integration and the strengthening of supranational democratic governance across Europe. They tend to advocate a more politically integrated or federal European Union, stronger common institutions, transnational democracy, coordinated responses to challenges such as climate change and migration, and policies that transcend traditional national politics. They distinguish themselves from mainstream centrist and pro-European parties by placing European integration itself at the centre of their political agenda, often advocating far-reaching institutional reform or federalism, while distinguishing themselves from Eurosceptic and nationalist parties by viewing shared sovereignty, cross-border cooperation, and a stronger European political identity as solutions rather than threats to democracy and prosperity."
+ ],
+ [
+  "Far-left",
+  "#7c0000",
+  "Far-left parties are political movements whose primary political concern is the transformation or replacement of capitalist economic systems in favour of socialism, communism, or other forms of collective economic organization. They tend to advocate strong public or collective ownership of key industries, extensive workers’ rights, economic planning, anti-imperialism, and a rapid or far-reaching restructuring of capitalist economies, often viewing liberal capitalism as inherently exploitative and class-based inequality as a central political problem. They distinguish themselves from broader left-wing parties by rejecting the institutions of liberal democratic capitalism as insufficient for achieving social and economic equality, often favouring revolutionary change, workers’ democracy, or alternative political models over parliamentary democracy within the capitalist system."
+ ],
+ [
+  "Far-right",
+  "#70463A",
+  "Far-right parties are political movements whose primary political concern is the protection of national identity, cultural homogeneity, sovereignty, and traditional social order, often framed as a response to perceived threats from immigration, multiculturalism, globalization, or supranational institutions. They tend to advocate restrictive immigration policies, strong law-and-order approaches, national preference in welfare and economics, social conservatism, and skepticism or rejection of international organizations, while emphasizing cultural traditionalism and national sovereignty over liberal democratic constraints and, in some cases, questioning multiparty parliamentarism in favour of stronger majoritarian, leader-centred, or ethnically defined conceptions of political representation. They distinguish themselves from mainstream right-wing and national-conservative parties by embracing more exclusionary or ethnonationalist conceptions of national identity and by displaying greater skepticism toward multiparty parliamentary democracy itself, often favouring stronger executive authority, plebiscitary leadership, or political systems that subordinate pluralism to a unified conception of the nation."
+ ],
+ [
+  "Green politics",
+  "#009900",
+  "Green parties are political movements whose primary political concern is environmental sustainability, climate protection, and the ecological transformation of society and the economy, typically paired with social progressivism and centre-left economic politics. They tend to advocate ambitious climate action, renewable energy, biodiversity protection, sustainable economic development, social justice, and participatory democracy, often linking environmental concerns with progressive positions on human rights, equality, and international cooperation. They distinguish themselves from centre-left and social democratic parties by placing ecological sustainability and long-term environmental limits at the centre of policymaking rather than treating them as one priority among many, while distinguishing themselves from animal rights parties by focusing more broadly on systemic environmental transformation, climate policy, and sustainability rather than primarily on animal welfare or animal rights."
+ ],
+ [
+  "Islamism",
+  "#8A9099",
+  "Islamist parties are political movements whose primary political concern is the promotion of law and social order informed by Islamic values and religious principles. They tend to advocate socially conservative policies, stronger roles for religion in public life, support for heteronormative family structures, and, in some cases, the greater incorporation of Islamic legal or moral frameworks into governance, often pairing this with economic conservatism or welfare-oriented communitarianism. They distinguish themselves from mainstream conservative and centre-right parties by placing religious doctrine and faith-based morality at the centre of policymaking, while distinguishing themselves from secular nationalist or right-wing parties by prioritizing religious identity and moral order over ethnic nationalism or purely state-centred conceptions of national identity."
+ ],
+ [
+  "Left-wing",
+  "#990000",
+  "Left-wing and democratic socialist parties are political movements whose primary political concern is the overcoming or fundamental transformation of capitalism through liberal-democratic and parliamentary means in pursuit of greater social and economic equality. They tend to advocate progressive taxation, welfare expansion, workers’ rights, environmental sustainability, anti-discrimination policies, democratic control over economic decision-making, and stronger public intervention in the economy, often combining social progressivism with critiques of inequality and corporate power. They distinguish themselves from centre-left and social democratic parties by viewing capitalism as a system that should ultimately be transcended rather than merely regulated or reformed, while distinguishing themselves from communist and anti-capitalist parties by accepting pluralist liberal democracy and seeking systemic change through electoral, parliamentary, and democratic institutions rather than rejecting the liberal democratic state or embracing revolutionary politics."
+ ],
+ [
+  "Liberalism",
+  "#FFD700",
+  "Liberal parties are political movements whose primary political concern is the protection of individual liberty, political pluralism, and constitutional democracy within a capitalist economic framework. They tend to advocate civil liberties, rule of law, market-oriented economies, international cooperation, European integration, and institutional reform, often combining economic liberalism with socially progressive or moderate positions on cultural issues and a broad skepticism toward state intervention in both the economy and individuals’ private lives. They distinguish themselves from centre-right and conservative parties by placing greater emphasis on individual freedoms, social liberalism, institutional reform, and internationalism over tradition, authority, or social conservatism, while distinguishing themselves from centre-left and social democratic parties by placing greater trust in markets, entrepreneurship, fiscal moderation, and individual choice, alongside a broader rejection of state interventionism in the economy and social private life."
+ ],
+ [
+  "Libertarianism",
+  "#F2C300",
+  "Libertarian and classical liberal parties are political movements whose primary political concern is the maximization of individual liberty through a broad rejection of state interventionism in both the economy and private life. They tend to advocate a minimal state primarily limited to upholding laws, policing, national defence, secure borders, and the protection of property rights and free markets, while favouring privatization or market provision of services such as healthcare, education, and welfare. They generally support low taxation, deregulation, strong civil liberties, individual responsibility, and extensive personal freedoms, often combining economically laissez-faire policies with socially liberal or anti-authoritarian positions. They distinguish themselves from mainstream liberal and centre-right parties by advocating a far smaller role for the state and stronger free-market economics, while distinguishing themselves from conservative parties by typically rejecting moral paternalism and state involvement in regulating private or social behaviour."
+ ],
+ [
+  "Monarchism",
+  "#8A9099",
+  "Monarchist and royalist parties are political movements whose primary political concern is the preservation or restoration of monarchy as a source of national unity, historical continuity, and political legitimacy. They tend to advocate traditional values, patriotism, institutional continuity, and stronger national identity, often viewing constitutional or symbolic monarchy as a stabilizing force above partisan politics. They distinguish themselves from mainstream conservative and centre-right parties by placing the monarchy or dynastic legitimacy at the centre of their political identity and constitutional vision, while distinguishing themselves from far-right parties by typically emphasizing historical continuity and constitutional order over ethnonationalism."
+ ],
+ [
+  "National-conservatism",
+  "#0000FF",
+  "National-conservative parties are political movements whose primary political concern is the protection of national sovereignty, cultural continuity, social order, and traditional values within the framework of representative democracy. They tend to advocate stronger borders, law and order, national identity, social conservatism, market-oriented or mixed economies, and skepticism toward supranational governance, often emphasizing patriotism, gradual change, and institutional stability, while many national-conservative parties combine this with Atlanticism, support for NATO, and strong transatlantic partnerships. They distinguish themselves from centre-right and liberal parties by placing greater emphasis on national identity, cultural conservatism, sovereignty, and skepticism toward immigration or supranational institutions, while distinguishing themselves from far-right parties by generally accepting pluralist liberal democracy, multiparty parliamentarism, constitutional constraints, and transatlantic cooperation rather than embracing anti-system politics, ethnonationalism, or hostility toward Western alliances."
+ ],
+ [
+  "Pirate politics",
+  "#9c36b8",
+  "Pirate parties are political movements whose primary political concern is the protection of digital rights, civil liberties, transparency, and participatory democracy in the information age. They tend to advocate internet freedom, data privacy, government transparency, open-source technologies, copyright reform, democratic innovation, and strong protections against state or corporate surveillance, often pairing these positions with socially liberal and pro-democratic values. They distinguish themselves from liberal and centrist parties by placing digital rights, democratic participation, and transparency at the centre of policymaking rather than treating them as secondary issues, while distinguishing themselves from broader progressive or left-wing parties by focusing less on traditional economic redistribution and more on civil liberties, decentralization, technological openness, and democratic reform."
+ ],
+ [
+  "Right-wing",
+  "#000000",
+  "Right-wing parties are political movements whose primary political concern is the protection of national sovereignty, traditional social order, and the perceived interests of “ordinary people” against political elites, globalization, immigration, or supranational institutions. They tend to advocate restrictive immigration policies, stronger borders, law and order, welfare chauvinism or economic protectionism, skepticism toward supranational governance, and culturally conservative positions, often combining nationalism with anti-establishment or populist rhetoric and a more skeptical stance toward transatlantic institutions or alliances. They distinguish themselves from national-conservative parties by placing greater emphasis on populist anti-elite politics, political personalization, and skepticism toward transatlanticism or Western institutional alignment, while distinguishing themselves from far-right parties by generally avoiding explicit ethnonationalism and accepting multiparty parliamentary democracy, even if they challenge liberal norms, minority protections, or judicial constraints."
+ ]
+];
+// ---------- ideology legend ----------
+let legendAll = false;
+const ideoKey = v => String(v || "").toLowerCase().replace(/-/g, " ").replace(/^libertarian$/, "libertarianism").trim();
+function renderLegend() {
+  const ideosOf = r => String(r[C.ideo] || "").split(/[,;]/).map(ideoKey).filter(Boolean);
+  const count = n => VIEW.filter(r => ideosOf(r).includes(ideoKey(n))).length;
+  const items = IDEOLOGY_DEFS.map(([n, c, t]) => ({ n, c, t, k: count(n) }));
+  const present = items.filter(i => i.k > 0), shown = legendAll ? items : present;
+  const known = new Set(IDEOLOGY_DEFS.map(([n]) => ideoKey(n))), undef = {};
+  VIEW.forEach(r => String(r[C.ideo] || "").split(/[,;]/).map(x => x.trim()).filter(Boolean).forEach(x => { if (!known.has(ideoKey(x))) undef[x] = (undef[x] || 0) + 1; }));
+  const undefTxt = Object.entries(undef).sort((a, b) => b[1] - a[1]).map(([n, k]) => `${esc(n)} (${fmt(k)})`).join(", ");
+  $("#lg-note").textContent = legendAll ? "All ideologies · counts are for the parties in view" : "Ideologies of the parties in view";
+  $("#legend-ideo").innerHTML = shown.map(({ n, c, t, k }) => `<div class="lg" style="background:${c}12">
+      <div class="t"><span class="dot" style="background:${c}"></span><h3>${esc(n)}</h3>${k ? `<span class="count">${fmt(k)} ${k === 1 ? "party" : "parties"}</span>` : ""}</div>
+      <p>${esc(t)}</p></div>`).join("") || '<p class="note">No parties in view.</p>';
+  $("#lg-undef").textContent = undefTxt ? `Also used, without a definition: ${undefTxt.replace(/&amp;/g, "&")}.` : "";
+  const hidden = items.length - present.length, btn = $("#lg-toggle");
+  btn.style.display = hidden || legendAll ? "block" : "none";
+  btn.textContent = legendAll ? "Show only ideologies in view" : `Show all ${items.length} ideologies`;
+  btn.setAttribute("aria-expanded", legendAll);
+  btn.onclick = () => { legendAll = !legendAll; renderLegend(); postHeight(); };
+}
+
 // ---------- table ----------
 const COLS = [
   ["country", "Country", r => r[C.country]],
@@ -437,12 +566,13 @@ function openDrawer(r) {
       return `<h4>${t}</h4><dl>${items.map(k => `<dt>${esc(k)}</dt><dd>${val(r[k])}</dd>`).join("")}</dl>`;
     }).join("")}`;
   $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false");
+  placeDrawer(); postHeight();
   const token = (openDrawer.token = (openDrawer.token || 0) + 1);
   findLogo(r).then(src => {
     const box = $("#drawer-logo");
     if (!src || !box || openDrawer.token !== token) return;
     box.innerHTML = `<img src="${esc(src)}" alt="Logo of ${esc(r[C.name])}" onerror="this.parentNode.hidden=true">`;
-    box.hidden = false;
+    box.hidden = false; postHeight();
   });
 }
 
@@ -502,9 +632,28 @@ function findLogo(r) {
   })());
   return LOGO_CACHE.get(key);
 }
-const closeDrawer = () => { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); };
+const closeDrawer = () => { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); postHeight(); };
 
-function renderAll() { renderKPIs(); renderMap(); renderEPTotal(); renderSpectrum(); renderAff(); renderTable(); }
+// ---------- embedding (WordPress iframe) ----------
+// Inside an iframe the page has no scrollbar of its own: it reports its height to the parent page (same message
+// as the other Europe Elects embeds), and the detail panel opens next to where the reader clicked.
+const EMBEDDED = window.self !== window.top;
+if (EMBEDDED) document.documentElement.classList.add("embedded");
+let lastY = 0;
+addEventListener("pointerdown", e => { lastY = e.pageY; }, true);
+function postHeight() {
+  if (!EMBEDDED) return;
+  const d = $("#drawer"), drawerBottom = d.classList.contains("open") ? d.offsetTop + d.offsetHeight + 16 : 0;
+  const h = Math.max(document.body.scrollHeight, drawerBottom);
+  parent.postMessage({ "datawrapper-height": { "ee-atlas": h } }, "*");
+}
+function placeDrawer() {
+  if (!EMBEDDED) return;
+  const d = $("#drawer");
+  d.style.top = Math.max(0, Math.min(lastY - 120, document.body.scrollHeight - d.offsetHeight)) + "px";
+}
+
+function renderAll() { renderKPIs(); renderMap(); renderEPTotal(); renderSpectrum(); renderAff(); renderTable(); renderLegend(); setTimeout(postHeight, 50); }
 
 // ---------- boot ----------
 async function boot() {
@@ -548,4 +697,5 @@ async function boot() {
   apply();
 }
 boot();
+if (window.ResizeObserver) new ResizeObserver(() => postHeight()).observe(document.body);
 })();
