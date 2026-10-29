@@ -131,3 +131,6 @@ td .native { color: var(--muted); font-size: 14px; }
   .filters select { flex: 1 1 45%; }
   .filters input[type=search] { max-width: none; flex-basis: 100%; }
 }
+.drawer .logo-box { margin: 14px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; display: flex; justify-content: center; }
+.drawer .logo-box[hidden] { display: none; }
+.drawer .logo-box img { max-height: 96px; max-width: 100%; object-fit: contain; }

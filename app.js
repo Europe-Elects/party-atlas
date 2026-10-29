@@ -14,14 +14,15 @@ const C = {
   started: "Political Activity Started", ep: "Europarty Affiliation", epEnd: "Europarty End", epInt: "Europarty Interest to Join",
 };
 const SECTIONS = [
-  ["Identity", ["Status","Country","Name (Native)","Name (English)","Abbreviation","Europe Elects Entity ID","Europe Elects Entity Version","Entity Version ID","National Legal ID"]],
+  ["Identity", ["Status","Country","Name (Native)","Name (English)","Abbreviation","National Legal ID"]],
   ["Profile", ["Ideological Orientation","EU Integration Position","Legally Recognized Minority Party","Separatist"]],
   ["Dates", ["Political Activity Started","Legal Entity Registration","Legal Entity Deregistration","Name Registration","Name Deregistration"]],
   ["European Parliament", ["European Parliament Group","EP Group Start","EP Group End"]],
   ["Europarty", ["Europarty Affiliation","Europarty Start","Europarty End"]],
   ["Other assemblies & federations", ["PACE Group","PACE Start","PACE End","International Party Federation","International Affiliation Start","International Affiliation End","Nordic Council Group","Nordic Council Start","Nordic Council End","CIS Affiliation","CIS Start","CIS End","Benelux Affiliation","Benelux Start","Benelux End","CLaRA Membership","CLaRA Start","CLaRA End","CoR Membership","CoR Start","CoR End"]],
 ];
-const KEEP = new Set([...SECTIONS.flatMap(s => s[1]), "ISO-2", "Europarty Interest to Join"]);
+// Europe Elects IDs are read for internal use only (latest version, stable dot positions) and never shown or searchable.
+const KEEP = new Set([...SECTIONS.flatMap(s => s[1]), "ISO-2", "Europarty Interest to Join", "Europe Elects Entity ID", "Europe Elects Entity Version", "Entity Version ID", "Logo", "Logo URL", "Logo Override", "Wikidata ID"]);
 const AFF = [
   ["PACE", "PACE Group"], ["EP group", "European Parliament Group"], ["Int'l federation", "International Party Federation"],
   ["Nordic Council", "Nordic Council Group"], ["CoR", "CoR Membership"], ["CLaRA", "CLaRA Membership"],
@@ -42,6 +43,13 @@ const ALIAS = { "PATRIOTS": "Patriots.eu", "PATRIOTS.EU": "Patriots.eu", "PFE": 
 // "EPP (2026)" (interest to join, with year) → "EPP"
 const partyKey = v => { v = v.replace(/\s*\(\d{4}\)\s*$/, "").trim(); return ALIAS[v.toUpperCase()] || v; };
 const colorOf = k => EP_COLOR[k] || "#8A9099";
+// Ideology colours, as on the country pages (first ideology of a combined entry counts).
+const IDEO_COLOR = { "agrarianism": "#90ee90", "animal rights": "#009076", "centre-left": "#FF0000", "centre-right": "#3399FF",
+  "centrism": "#fa8c00", "christian fundamentalism": "#a16585", "eurofederalism": "#502379", "far-left": "#7c0000",
+  "far-right": "#70463A", "green politics": "#009900", "islamism": "#8A9099", "left-wing": "#990000", "liberalism": "#FFD700",
+  "libertarianism": "#F2C300", "libertarian": "#F2C300", "monarchism": "#8A9099", "national conservatism": "#0000FF",
+  "national-conservatism": "#0000FF", "pirate politics": "#9c36b8", "right-wing": "#000000", "regionalism": "#008080" };
+const ideoColorOf = v => IDEO_COLOR[String(v).split(/[,;]/)[0].trim().toLowerCase()] || "#8A9099";
 const EU_ORDER = ["Strongly opposed","Opposed","Somewhat opposed","Neutral","Somewhat in favour","In favour","Strongly in favour"];
 const EU_COLOR = ["#d03b3b","#e66767","#f3a9a8","var(--neutral)","#86b6ef","#3987e5","#1c5cab"];
 
@@ -59,7 +67,7 @@ const clean = v => { v = (v ?? "").toString().replace(/[​-‍﻿]/g, "").trim(
 const isNone = v => !v || /^(unaffiliated|none|no|\*|-|–)$/i.test(v);
 const fmt = d3.format(",");
 
-let ALL = [], VIEW = [], state = { q: "", country: "", status: "active", ep: "", ideo: "", lean: true, latest: true };
+let ALL = [], VIEW = [], state = { q: "", country: "", status: "active", ep: "", ideo: "", lean: false, latest: true };
 let sort = { key: "country", asc: true }, shown = 100, affTab = 0;
 
 // ---------- load ----------
@@ -95,7 +103,7 @@ function normalise(r) {
   const y = parseInt((o[C.started] || "").match(/\d{4}/)?.[0], 10);
   o._year = Number.isFinite(y) ? y : null;
   o._ver = parseInt(o[C.ver], 10) || 1;
-  o._search = [o[C.name], o[C.native], o[C.abbr], o[C.id], o[C.country], o[C.legal]].join(" ").toLowerCase();
+  o._search = [o[C.name], o[C.native], o[C.abbr], o[C.country], o[C.legal]].join(" ").toLowerCase();
   return o;
 }
 
@@ -181,7 +189,7 @@ async function renderMap() {
   let feats;
   try { feats = await loadWorld(); } catch { el.innerHTML = `<p class="sub">Map unavailable offline.</p>`; return; }
   // colour by counts ignoring the country filter, so the map stays useful when one is selected
-  const base = ALL.filter(r => r._status !== "realigned" && (!state.latest || r._latest) && (!state.status || r._status === state.status) && (!state.ep || r._ep === state.ep) && (!state.ideo || r[C.ideo] === state.ideo) && (!state.q || r._search.includes(state.q.toLowerCase())));
+  const base = ALL.filter(r => r._status !== "realigned" && (!state.latest || r._latest) && (!state.status || r._status === state.status) && (!state.ep || r._ep === state.ep && (state.lean || !r._lean)) && (!state.ideo || r[C.ideo] === state.ideo) && (!state.q || r._search.includes(state.q.toLowerCase())));
   const cnt = d3.rollup(base, v => v.length, r => r[C.iso]);
   const iso2ByNum = Object.fromEntries(Object.entries(NUM).map(([a, n]) => [n, a]));
   const iso2ByName = Object.fromEntries(Object.entries(BY_NAME).map(([a, n]) => [n, a]));
@@ -193,7 +201,11 @@ async function renderMap() {
   proj.fitExtent([[0, 0], [W, H]], { type: "MultiPoint", coordinates: [[-24, 35], [44, 35], [44, 70], [-24, 70], [10, 71], [10, 34]] });
   const path = d3.geoPath(proj);
   const max = d3.max(cnt.values()) || 1;
-  const color = d3.scaleSequentialLog([1, Math.max(2, max)], d3.interpolateRgb("#D6E3F7", "#1B2A4A"));
+  // Colour follows the selected Europarty or ideology (same colours as elsewhere); navy otherwise.
+  const hue = state.ep ? colorOf(state.ep) : state.ideo ? ideoColorOf(state.ideo) : "#1B2A4A";
+  const hc = d3.hsl(hue), end = (hc.l > 0.45 ? hc.darker(hc.l > 0.6 ? 1.3 : 0.6) : hc).formatHex();
+  const start = d3.interpolateRgb("#FFFFFF", hue)(0.18);
+  const color = d3.scaleSequentialLog([1, Math.max(2, max)], d3.interpolateRgb(start, end));
 
   const svg = d3.select(el).selectAll("svg").data([0]).join("svg").attr("viewBox", `0 0 ${W} ${H}`);
   svg.selectAll("path.c").data(feats, d => d.id + (d.properties.name || ""))
@@ -207,7 +219,7 @@ async function renderMap() {
     .on("mouseleave", hideTip)
     .on("click", (ev, d) => { const iso = isoOf(d); if (!cnt.get(iso)) return; setCountry(state.country === iso ? "" : iso); });
   svg.selectAll("path.c.sel").raise();
-  $("#map-legend").innerHTML = `<span>1</span><span class="bar" style="background:linear-gradient(90deg,#D6E3F7,#1B2A4A)"></span><span>${fmt(max)} entities (log scale)</span>`;
+  $("#map-legend").innerHTML = `<span>1</span><span class="bar" style="background:linear-gradient(90deg,${start},${end})"></span><span>${fmt(max)} ${state.ep ? esc(epLabel(state.ep)) + " members" : state.ideo ? esc(state.ideo) + " parties" : "entities"} (log scale)</span>`;
 }
 function setCountry(iso) { state.country = iso; $("#f-country").value = iso; apply(); }
 
@@ -275,14 +287,16 @@ const LR_RULES = [
   [/centre[- ]?left|center[- ]?left|social[- ]?democra|labou?r/i, 3.4],
   [/centre[- ]?right|center[- ]?right|christian[- ]?democra|liberal[- ]?conservat/i, 6.6],
   [/left[- ]?wing|democratic socialis|socialis|eco-?socialis/i, 1.8],
-  [/right[- ]?wing|national[- ]?conservat|nationalis|monarchis|right[- ]?populis|sovereign/i, 8.2],
+  [/national[- ]?conservat/i, 7.4],
+  [/right[- ]?wing|nationalis|monarchis|right[- ]?populis|sovereign/i, 8.2],
   [/green|ecolog|environment/i, 2.8],
   [/agrarian/i, 5.6],
   [/liberal|libertarian/i, 5.6],
   [/conservat/i, 7.3],
   [/centris|centre|center|pro-?europe/i, 5.0],
 ];
-const LR_TICKS = [[0.6, "Far-left"], [1.8, "Left"], [3.4, "Centre-left"], [5, "Centre"], [6.6, "Centre-right"], [8.2, "Right"], [9.4, "Far-right"]];
+const LR_TICKS = [[0.6, "Far-left", "FL"], [1.8, "Left", "L"], [3.4, "Centre-left", "CL"], [5, "Centre", "C"], [6.6, "Centre-right", "CR"], [7.4, "Nat.-cons.", "NC"], [8.2, "Right", "R"], [9.4, "Far-right", "FR"]];
+const SHORT_BAND = { "Strongly in favour": "Strongly for", "In favour": "For", "Somewhat in favour": "Somewhat for", "Somewhat opposed": "Somewhat against", "Opposed": "Against", "Strongly opposed": "Strongly against", "No stance recorded": "No stance" };
 const hash = str => { let h = 2166136261; for (const ch of String(str)) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 const lrOf = r => { const v = r[C.ideo] || ""; for (const [re, x] of LR_RULES) if (re.test(v)) return x; return null; };
 
@@ -305,7 +319,7 @@ function renderSpectrum() {
   $("#lr-note").textContent = unplaced ? `${fmt(unplaced)} not placed (${unplacedLabels.slice(0, 4).map(([k, n]) => `${k} ${n}`).join(", ")}${unplacedLabels.length > 4 ? ", …" : ""}).` : "";
   if (!placed.length) { host.append("p").attr("class", "sub").text("No parties with a left–right placement in view."); return; }
 
-  const W = el.clientWidth || 900, lw = Math.min(150, W * 0.3), pr = 16, top = 26;
+  const W = el.clientWidth || 900, narrow = W < 640, lw = narrow ? 92 : Math.min(150, W * 0.3), pr = 16, top = 26;
   const R = placed.length > 900 ? 3.5 : placed.length > 350 ? 4.5 : 6;
   const x = d3.scaleLinear([0, 10], [lw + R + 4, W - pr - R]);
   const unit = x(1) - x(0), jx = Math.max(R, unit * 0.22), jmax = Math.max(R * 1.5, unit * 0.4); // horizontal scatter range
@@ -344,14 +358,14 @@ function renderSpectrum() {
     .attr("fill", d => (d.bi % 2 ? "var(--wash)" : "transparent")).attr("opacity", 0.6);
   svg.append("g").attr("class", "grid").selectAll("line").data(LR_TICKS).join("line")
     .attr("x1", d => x(d[0])).attr("x2", d => x(d[0])).attr("y1", top - 4).attr("y2", H);
-  svg.append("g").selectAll("text").data(LR_TICKS).join("text").attr("x", d => x(d[0])).attr("y", 14).attr("text-anchor", "middle")
-    .style("fill", "var(--blue)").style("font-size", "13px").style("font-weight", 700).text(d => d[1]);
+  svg.append("g").selectAll("text").data(LR_TICKS).join("text").attr("x", d => x(d[0])).attr("y", 14).attr("text-anchor", "middle").attr("data-full", d => d[1])
+    .style("fill", "var(--blue)").style("font-size", narrow ? "11px" : "13px").style("font-weight", 700).text(d => narrow ? d[2] : d[1]);
 
   const row = svg.selectAll("g.row").data(groups).join("g").attr("class", "row");
   row.append("rect").attr("x", lw - 10).attr("width", 4).attr("rx", 2).attr("y", d => d.y + 6).attr("height", d => d.h - 12)
     .attr("fill", d => d.bi < 7 ? EU_COLOR[6 - d.bi] : "transparent");
   row.append("text").attr("x", lw - 18).attr("y", d => d.y + d.h / 2).attr("dy", ".35em").attr("text-anchor", "end")
-    .style("fill", d => d.bi < 7 ? "var(--ink-2)" : "var(--muted)").text(d => d.name);
+    .style("fill", d => d.bi < 7 ? "var(--ink-2)" : "var(--muted)").style("font-size", narrow ? "12px" : null).text(d => narrow ? (SHORT_BAND[d.name] || d.name) : d.name);
   row.append("text").attr("x", W - pr).attr("y", d => d.y + 12).attr("text-anchor", "end").style("fill", "var(--muted)").style("font-size", "11px")
     .text(d => d.rows.length ? "n=" + d.rows.length : "");
   svg.append("text").attr("x", lw - 18).attr("y", 14).attr("text-anchor", "end").style("fill", "var(--muted)").style("font-size", "11px").text("EU stance");
@@ -359,14 +373,14 @@ function renderSpectrum() {
   const nodes = groups.flatMap(g => g.nodes);
   svg.append("g").selectAll("circle").data(nodes).join("circle")
     .attr("cx", n => n.x).attr("cy", n => n.y).attr("r", R)
-    .attr("fill", n => n.r._ep ? colorOf(n.r._ep) : "var(--neutral)")
-    .attr("fill-opacity", n => n.r._lean ? 0.35 : 1)
+    .attr("fill", n => epOf(n.r) ? colorOf(epOf(n.r)) : "var(--neutral)")
+    .attr("fill-opacity", n => epOf(n.r) && n.r._lean ? 0.35 : 1)
     .attr("stroke", n => { const g = epgOf(n.r); return g ? (EPG_COLOR[g] || "#8A9099") : "var(--muted)"; })
     .attr("stroke-width", n => (epgOf(n.r) ? 3 : 1))
     .style("cursor", "pointer")
     .on("mousemove", (ev, n) => {
       const r = n.r, g = epgOf(r);
-      showTip(ev, `<b>${esc(r[C.name])}</b>${r[C.abbr] ? ` (${esc(r[C.abbr])})` : ""}<br><span class="m">${esc(r[C.country])} · ${esc(r[C.ideo])}</span><br>EU stance: ${esc(r._eu || "not recorded")}<br>Europarty: ${r._ep ? esc(epLabel(r._ep)) + (r._lean ? " (interest to join)" : "") : "none"}<br>EP group: ${g ? esc(g) : "none"}`);
+      showTip(ev, `<b>${esc(r[C.name])}</b>${r[C.abbr] ? ` (${esc(r[C.abbr])})` : ""}<br><span class="m">${esc(r[C.country])} · ${esc(r[C.ideo])}</span><br>EU stance: ${esc(r._eu || "not recorded")}<br>Europarty: ${epOf(r) ? esc(epLabel(r._ep)) + (r._lean ? " (interest to join)" : "") : "none"}<br>EP group: ${g ? esc(g) : "none"}`);
     })
     .on("mouseleave", hideTip).on("click", (ev, n) => openDrawer(n.r));
 }
@@ -388,7 +402,7 @@ const COLS = [
   ["name", "Party", r => r[C.name]],
   ["ideo", "Ideology", r => r[C.ideo]],
   ["eu", "EU stance", r => r._eu],
-  ["ep", "Europarty", r => (r._ep ? epLabel(r._ep) + (r._lean ? " (interested)" : "") : "")],
+  ["ep", "Europarty", r => (epOf(r) ? epLabel(r._ep) + (r._lean ? " (interested)" : "") : "")],
   ["epg", "EP group", r => isNone(r["European Parliament Group"]) ? "" : r["European Parliament Group"]],
   ["year", "Since", r => r._year ?? ""],
   ["status", "Status", r => r._status],
@@ -402,7 +416,7 @@ function renderTable() {
     <td>${esc(r[C.country])}</td><td><b>${esc(r[C.abbr])}</b></td>
     <td>${esc(r[C.name])}<br><span class="native">${esc(trunc(r[C.native] || "", 48))}</span></td>
     <td>${esc(r[C.ideo])}</td><td>${esc(r._eu)}</td>
-    <td>${r._ep ? `<span class="pill"><i style="background:${colorOf(r._ep)}"></i>${esc(epLabel(r._ep))}${r._lean ? ' <span class="native">interested</span>' : ""}</span>` : ""}</td>
+    <td>${epOf(r) ? `<span class="pill"><i style="background:${colorOf(r._ep)}"></i>${esc(epLabel(r._ep))}${r._lean ? ' <span class="native">interested</span>' : ""}</span>` : ""}</td>
     <td>${esc(isNone(r["European Parliament Group"]) ? "" : r["European Parliament Group"])}</td>
     <td class="num">${r._year ?? ""}</td><td><span class="status">${esc(r._status)}</span></td></tr>`).join("");
   $("#tbl tbody").querySelectorAll("tr").forEach(tr => tr.onclick = () => openDrawer(ALL[+tr.dataset.i]));
@@ -415,6 +429,7 @@ function openDrawer(r) {
   const val = v => (v ? esc(v) : '<span style="color:var(--muted)">—</span>');
   $("#drawer-body").innerHTML = `
     <h3>${esc(r[C.name])} ${r[C.abbr] ? `<span style="color:var(--muted);font-weight:400">(${esc(r[C.abbr])})</span>` : ""}</h3>
+    <div class="logo-box" id="drawer-logo" hidden></div>
     <div class="native">${esc(r[C.native])} · ${esc(r[C.country])}</div>
     ${SECTIONS.map(([t, ks]) => {
       const items = ks.filter(k => t === "Identity" || t === "Profile" || (r[k] && !isNone(r[k])));
@@ -422,6 +437,70 @@ function openDrawer(r) {
       return `<h4>${t}</h4><dl>${items.map(k => `<dt>${esc(k)}</dt><dd>${val(r[k])}</dd>`).join("")}</dl>`;
     }).join("")}`;
   $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false");
+  const token = (openDrawer.token = (openDrawer.token || 0) + 1);
+  findLogo(r).then(src => {
+    const box = $("#drawer-logo");
+    if (!src || !box || openDrawer.token !== token) return;
+    box.innerHTML = `<img src="${esc(src)}" alt="Logo of ${esc(r[C.name])}" onerror="this.parentNode.hidden=true">`;
+    box.hidden = false;
+  });
+}
+
+// ---------- party logos (same rules as the country pages) ----------
+// 1. A "Logo" column in the database (a Wikipedia/Commons file link, an image URL, a Wikidata Q-ID, or "none").
+// 2. Otherwise the party's English Wikipedia article (English, then native name) → Wikidata logo (P154),
+//    accepted only if Wikidata says it is a political party in that country.
+const LOGO_CACHE = new Map();
+const wikiJSON = url => fetch(url).then(res => { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); });
+const claims = (e, p) => (((e && e.claims) || {})[p] || []).filter(c => c.rank !== "deprecated").map(c => c.mainsnak && c.mainsnak.datavalue && c.mainsnak.datavalue.value).filter(Boolean);
+const filePath = (host, file) => `https://${host}/wiki/Special:FilePath/${encodeURIComponent(String(file).replace(/ /g, "_"))}?width=360`;
+function logoSpec(v) {
+  v = clean(v);
+  if (!v) return null;
+  if (/^(none|no|-|–|hide|hidden)$/i.test(v)) return { hide: true };
+  if (/^Q\d+$/i.test(v)) return { qid: v.toUpperCase() };
+  const wiki = v.match(/^https?:\/\/([\w.-]+\.(?:wikipedia|wikimedia)\.org)\/wiki\/(?:[^#]*#\/media\/)?[^:/#]+:([^?#]+\.(?:svg|png|jpe?g|gif|webp|tiff?))(?:[?#].*)?$/i);
+  if (wiki) return { src: filePath(wiki[1].replace(".m.", "."), decodeURIComponent(wiki[2])) };
+  const bare = v.match(/^(?:File:)?(.+\.(?:svg|png|jpe?g|gif|webp))$/i);
+  if (bare && !/^https?:/i.test(v)) return { src: filePath("commons.wikimedia.org", bare[1]) };
+  if (/^https?:\/\//i.test(v)) return { src: v };
+  return null;
+}
+async function titleToQid(title) {
+  const j = await wikiJSON("https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=pageprops&ppprop=wikibase_item|disambiguation&titles=" + encodeURIComponent(title));
+  const pg = Object.values((j.query || {}).pages || {})[0] || {}, pp = pg.pageprops || {};
+  return pp.wikibase_item && !("disambiguation" in pp) ? pp.wikibase_item : null;
+}
+async function entities(qids) {
+  const j = await wikiJSON("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*&props=claims&ids=" + qids.join("|"));
+  return j.entities || {};
+}
+function findLogo(r) {
+  const key = r[C.verId] || r[C.id] || r[C.name];
+  if (!LOGO_CACHE.has(key)) LOGO_CACHE.set(key, (async () => {
+    const sp = logoSpec(r.Logo || r["Logo URL"] || r["Logo Override"]);
+    if (sp && sp.hide) return null;
+    if (sp && sp.src) return sp.src;
+    try {
+      const forced = (sp && sp.qid) || (clean(r["Wikidata ID"]).match(/Q\d+/) || [""])[0];
+      const [qCountry, qEn, qNat] = await Promise.all([r[C.country], r[C.name], r[C.native]].map(t => (t ? titleToQid(t).catch(() => null) : null)));
+      const qids = [...new Set([forced, qEn, qNat].filter(Boolean))];
+      if (!qids.length) return null;
+      const ents = await entities(qids);
+      for (const q of qids) {
+        const e = ents[q]; if (!e) continue;
+        if (q !== forced) {
+          const inCountry = qCountry && claims(e, "P17").some(v => v.id === qCountry);
+          const isParty = claims(e, "P31").some(v => v.id === "Q7278") || claims(e, "P1142").length > 0;
+          if (!inCountry || !isParty) continue;
+        }
+        const file = claims(e, "P154")[0] || claims(e, "P8972")[0];
+        if (file) return filePath("commons.wikimedia.org", file);
+      }
+    } catch (e) { /* no logo */ }
+    return null;
+  })());
+  return LOGO_CACHE.get(key);
 }
 const closeDrawer = () => { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); };
 
@@ -439,7 +518,7 @@ async function boot() {
   const fromSample = data.url.includes("sample");
   $("#data-stamp").textContent = `${fmt(ALL.filter(r => r._latest).length)} parties${fromSample ? " (sample data)" : ""}${data.stamp ? " · updated " + new Date(data.stamp).toLocaleDateString() : ""}`;
 
-  const countries = [...d3.rollup(ALL, v => v[0][C.country], r => r[C.iso])].filter(([k]) => k).sort((a, b) => d3.ascending(a[1], b[1]));
+  const countries = [...d3.rollup(ALL, v => v[0][C.country], r => r[C.iso])].filter(([k]) => k).sort((a, b) => String(a[1]).localeCompare(String(b[1]), "en", { sensitivity: "base" })); // "Åland" sorts as "Aland"
   fillSelect($("#f-country"), countries.map(([iso, n]) => [iso, n]), "All countries");
   // "realigned" rows are earlier versions of a party that changed affiliation: never offered as a status.
   const statuses = d3.rollups(ALL.filter(r => r._status !== "realigned" && r._latest), v => v.length, r => r._status).sort((a, b) => b[1] - a[1]);
@@ -460,8 +539,8 @@ async function boot() {
   on("#q", "q", "input"); on("#f-country", "country"); on("#f-status", "status"); on("#f-ep", "ep"); on("#f-ideo", "ideo");
   $("#f-lean").onchange = e => { state.lean = e.target.checked; apply(); };
   $("#f-latest").onchange = e => { state.latest = e.target.checked; apply(); };
-  $("#reset").onclick = () => { state = { q: "", country: "", status: statuses.some(s => s[0] === "active") ? "active" : "", ep: "", ideo: "", lean: true, latest: true };
-    $("#q").value = ""; $("#f-latest").checked = true; ["#f-country", "#f-ep", "#f-ideo"].forEach(s => $(s).value = ""); $("#f-status").value = state.status; $("#f-lean").checked = true; apply(); };
+  $("#reset").onclick = () => { state = { q: "", country: "", status: statuses.some(s => s[0] === "active") ? "active" : "", ep: "", ideo: "", lean: false, latest: true };
+    $("#q").value = ""; $("#f-latest").checked = true; ["#f-country", "#f-ep", "#f-ideo"].forEach(s => $(s).value = ""); $("#f-status").value = state.status; $("#f-lean").checked = false; apply(); };
   $("#more").onclick = () => { shown += 200; renderTable(); };
   $("#drawer-close").onclick = closeDrawer;
   addEventListener("keydown", e => e.key === "Escape" && closeDrawer());
