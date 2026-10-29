@@ -1,0 +1,76 @@
+name: Refresh data & deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * *"   # daily at 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  SHEET_ID: 1MAdqaO7SU4uhjjbaDoTGdj7DPZ_NuWvjTnAcrUnTHY8
+  GID: "0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download sheet as CSV
+        run: |
+          mkdir -p _site/data
+          curl -fsSL --retry 3 -o raw.csv \
+            "https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}"
+
+      - name: Drop ignored columns and validate
+        run: |
+          python3 - <<'PY'
+          import csv, sys
+          STOP = "Documented Links (Exl. Affiliation, Excl. Within Own ISO Country) with EP Group"
+          IGNORE = {STOP, "Orientation", "CEEGLA", "LIBSEEN", "Other International Affiliations",
+                    "Date Enter", "Date Exit", "Note", "Latest",
+                    "Europe Elects European Parliament Seat Projection Assignment"}
+          with open("raw.csv", newline="", encoding="utf-8") as f:
+              rows = list(csv.reader(f))
+          head = [h.strip() for h in rows[0]]
+          if "Europe Elects Entity ID" not in head:
+              sys.exit("Unexpected sheet layout: header row not found")
+          cut = head.index(STOP) if STOP in head else len(head)
+          keep = [i for i, h in enumerate(head) if i < cut and h and h not in IGNORE]
+          out = [[head[i] for i in keep]]
+          for r in rows[1:]:
+              r = r + [""] * (len(head) - len(r))
+              if not any(c.strip() for c in r):
+                  continue
+              out.append([r[i] for i in keep])
+          with open("_site/data/parties.csv", "w", newline="", encoding="utf-8") as f:
+              csv.writer(f).writerows(out)
+          print(f"{len(out)-1} rows, {len(keep)} columns kept")
+          PY
+
+      - name: Assemble site
+        run: cp index.html style.css app.js _site/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
