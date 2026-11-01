@@ -295,6 +295,11 @@ function renderEPTotal() {
 // ---------- left–right spectrum ----------
 // Ideological orientation → position on a 0 (far-left) … 10 (far-right) scale. Unmatched labels are listed as "not placed".
 const LR_RULES = [
+  // specific families first, so the broader rules below don't catch them
+  [/animal/i, 2.3],                                   // animal welfare / animal rights: between Left and Greens
+  [/christian[- ]?fundamental/i, 7.4],                 // placed where ECR / national-conservatives sit
+  [/pirate/i, 3.4],                                    // centre-left
+  [/euro-?federal/i, 3.4],                             // centre-left
   [/far[- ]?left|communis|marxis|trotsk|anti-capital/i, 0.6],
   [/far[- ]?right|neo-?fascis|ultra-?national/i, 9.4],
   [/centre[- ]?left|center[- ]?left|social[- ]?democra|labou?r/i, 3.4],
@@ -566,9 +571,24 @@ function openDrawer(r) {
     <div class="logo-box" id="drawer-logo" hidden></div>
     <div class="native">${esc(r[C.native])} · ${esc(r[C.country])}</div>
     ${SECTIONS.map(([t, ks]) => {
-      const items = ks.filter(k => t === "Identity" || t === "Profile" || (r[k] && !isNone(r[k])));
+      // "Unaffiliated" is shown as its own category, so a start date (e.g. "EP Group Start 2018") always has a group next to it.
+      // Affiliation sections list fields in threes: group/affiliation, start, end.
+      const unaff = v => /^unaffiliated$/i.test(String(v || "").trim());
+      const has = k => r[k] && (!isNone(r[k]) || unaff(r[k]));
+      let items, show = k => r[k];
+      if (t === "Identity" || t === "Profile" || t === "Dates") items = t === "Dates" ? ks.filter(has) : ks;
+      else {
+        items = []; const filled = new Set();
+        for (let i = 0; i < ks.length; i += 3) {
+          const trio = ks.slice(i, i + 3);
+          if (!trio.some(has)) continue;
+          items.push(...trio.filter((k, j) => j === 0 || has(k)));
+          if (!has(trio[0]) || unaff(r[trio[0]])) filled.add(trio[0]);
+        }
+        show = k => filled.has(k) ? "Unaffiliated" : r[k];
+      }
       if (!items.length) return "";
-      return `<h4>${t}</h4><dl>${items.map(k => `<dt>${esc(k)}</dt><dd>${val(r[k])}</dd>`).join("")}</dl>`;
+      return `<h4>${t}</h4><dl>${items.map(k => `<dt>${esc(k)}</dt><dd>${val(show(k))}</dd>`).join("")}</dl>`;
     }).join("")}`;
   $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false");
   placeDrawer(); postHeight();
