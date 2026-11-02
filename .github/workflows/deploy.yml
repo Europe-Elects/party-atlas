@@ -10,14 +10,16 @@ on:
 permissions:
   contents: read
   pages: write
-  id-token: write
+  id-token: write          # lets the job prove to Google that it runs in Europe-Elects
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 env:
-  SHEET_ID: 1MAdqaO7SU4uhjjbaDoTGdj7DPZ_NuWvjTnAcrUnTHY8
+  # Not secret: these only name the Google identity. Access is limited to Europe-Elects Actions.
+  GCP_PROVIDER: projects/659866385408/locations/global/workloadIdentityPools/github/providers/github-actions
+  GCP_SERVICE_ACCOUNT: ee-sheets-reader@project-6c08a079-4a01-46eb-aaf.iam.gserviceaccount.com
   GID: "0"
 
 jobs:
@@ -26,11 +28,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - id: google
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/spreadsheets.readonly
+          create_credentials_file: false
+
       - name: Download sheet as CSV
+        env:
+          GOOGLE_TOKEN: ${{ steps.google.outputs.access_token }}
+          SHEET_ID: ${{ secrets.PARTY_DB_SHEET_ID }}
         run: |
+          test -n "$SHEET_ID" || { echo "Secret PARTY_DB_SHEET_ID is missing"; exit 1; }
           mkdir -p _site/data
-          curl -fsSL --retry 3 -o raw.csv \
-            "https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}"
+          python3 scripts/sheet_csv.py "$SHEET_ID" "$GID" raw.csv
 
       - name: Drop ignored columns and validate
         run: |
