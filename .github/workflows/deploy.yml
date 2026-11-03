@@ -59,17 +59,22 @@ jobs:
           head = [h.strip() for h in rows[0]]
           if "Europe Elects Entity ID" not in head:
               sys.exit("Unexpected sheet layout: header row not found")
+          # European countries and territories only (the sheet also holds other continents, e.g. Africa).
+          # Same list as the country pages; add a code here if a European country is missing.
+          EUROPE = set("""AL AD AM AT AZ BY BE BA BG HR CY CZ DK EE FO FI FR GE DE GI GR GL GG HU IS IE IM IT JE XK LV LI
+                          LT LU MT MD MC ME NL MK NO PL PT RO RU SM RS SK SI ES SE CH TR UA GB VA AX EU KZ SJ""".split())
+          iso = head.index("ISO-2")
           cut = head.index(STOP) if STOP in head else len(head)
           keep = [i for i, h in enumerate(head) if i < cut and h and h not in IGNORE]
           out = [[head[i] for i in keep]]
           for r in rows[1:]:
               r = r + [""] * (len(head) - len(r))
-              if not any(c.strip() for c in r):
+              if not any(c.strip() for c in r) or r[iso].strip().upper() not in EUROPE:
                   continue
               out.append([r[i] for i in keep])
           with open("_site/data/parties.csv", "w", newline="", encoding="utf-8") as f:
               csv.writer(f).writerows(out)
-          print(f"{len(out)-1} rows, {len(keep)} columns kept")
+          print(f"{len(out)-1} rows, {len(keep)} columns kept; countries: {' '.join(sorted({r[iso] for r in rows[1:] if len(r) > iso and r[iso].strip().upper() in EUROPE}))}")
           PY
 
       - name: Assemble site
